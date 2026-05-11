@@ -1,7 +1,7 @@
 const http = require('node:http');
 
 function createDashboardServer(options = {}) {
-  const host = options.host ?? '127.0.0.1';
+  const host = options.host ?? '0.0.0.0';
   const logger = options.logger ?? console;
   const server = http.createServer((request, response) => {
     options.controller.handle(request, response);

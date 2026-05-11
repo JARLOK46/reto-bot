@@ -33,7 +33,8 @@ function loadEnv() {
     DEFAULT_TURN_TIMEOUT_SECONDS,
     'TURN_TIMEOUT_SECONDS'
   );
-  const dashboardPort = parseInteger(process.env.DASHBOARD_PORT, DEFAULT_DASHBOARD_PORT, 'DASHBOARD_PORT');
+  const portValue = process.env.PORT ?? process.env.DASHBOARD_PORT;
+  const dashboardPort = parseInteger(portValue, DEFAULT_DASHBOARD_PORT, 'PORT');
 
   if (scoreIncrement <= 0) {
     throw new Error('SCORE_INCREMENT must be greater than 0.');

@@ -25,7 +25,8 @@ Bot de Telegram hecho con Node.js + Telegraf para practicar restas en sesiones e
 - `BOT_TOKEN` (obligatoria): token del bot de Telegram.
 - `SCORE_INCREMENT` (opcional, default `1`): puntos otorgados por cada acierto.
 - `TURN_TIMEOUT_SECONDS` (opcional, default `15`): duracion maxima de cada turno.
-- `DASHBOARD_PORT` (opcional, default `3000`): puerto local del dashboard HTML read-only.
+- `PORT` (opcional, prioridad en hosting): puerto HTTP asignado por Render/Railway u otro proveedor.
+- `DASHBOARD_PORT` (opcional, default `3000`): puerto local del dashboard HTML read-only cuando `PORT` no existe.
 
 ## Setup local
 
@@ -38,6 +39,12 @@ Bot de Telegram hecho con Node.js + Telegraf para practicar restas en sesiones e
     - Desarrollo: `npm run dev`
     - Produccion local: `npm start`
 5. Abre el dashboard local en `http://127.0.0.1:<DASHBOARD_PORT>/dashboard`.
+
+## Despliegue como Web Service
+
+- El servidor HTTP escucha en `0.0.0.0` para ser accesible desde plataformas como Render o Railway.
+- El puerto se resuelve con esta prioridad: `PORT` -> `DASHBOARD_PORT` -> `3000`.
+- Configura el health check del proveedor en `GET /api/health`.
 
 ## Dashboard HTML operativo
 
