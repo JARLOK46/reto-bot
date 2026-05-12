@@ -16,19 +16,57 @@ function isRetryableTelegramError(error) {
   return ['ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(error?.code);
 }
 
-async function launchBotWithRetry(bot, { shouldStop, logger = console } = {}) {
+function toRuntimeError(error) {
+  if (!error) {
+    return null;
+  }
+
+  return {
+    code: error?.code ?? null,
+    message: error?.message ?? String(error),
+    retryable: isRetryableTelegramError(error),
+    at: new Date().toISOString()
+  };
+}
+
+function createBotState(config) {
+  return {
+    mode: config.telegram.mode,
+    status: 'idle',
+    launchAttempts: 0,
+    connectedAt: null,
+    lastError: null
+  };
+}
+
+async function launchBotWithRetry(bot, { shouldStop, logger = console, botState } = {}) {
   let attempt = 0;
 
   while (!shouldStop()) {
     try {
       attempt += 1;
+      if (botState) {
+        botState.status = 'connecting';
+        botState.launchAttempts = attempt;
+        botState.lastError = null;
+      }
+
       logger.log(`Launching bot (attempt ${attempt})...`);
       await bot.launch();
+      if (botState) {
+        botState.status = 'connected';
+        botState.connectedAt = new Date().toISOString();
+      }
       logger.log('Bot launched successfully');
       return true;
     } catch (error) {
       const retryable = isRetryableTelegramError(error);
       const delayMilliseconds = Math.min(5000 * attempt, 30000);
+
+      if (botState) {
+        botState.status = retryable ? 'retrying' : 'failed';
+        botState.lastError = toRuntimeError(error);
+      }
 
       logger.error('Bot launch failed', {
         attempt,
@@ -46,6 +84,59 @@ async function launchBotWithRetry(bot, { shouldStop, logger = console } = {}) {
   }
 
   return false;
+}
+
+async function registerWebhookWithRetry(bot, telegramConfig, { shouldStop, logger = console, botState } = {}) {
+  let attempt = 0;
+
+  while (!shouldStop()) {
+    try {
+      attempt += 1;
+      if (botState) {
+        botState.status = 'connecting';
+        botState.launchAttempts = attempt;
+        botState.lastError = null;
+      }
+
+      logger.log(`Registering webhook (attempt ${attempt})...`);
+      const webhookHandler = await bot.createWebhook({
+        domain: telegramConfig.webhookBaseUrl,
+        path: telegramConfig.webhookPath,
+        secret_token: telegramConfig.webhookSecretToken
+      });
+
+      if (botState) {
+        botState.status = 'connected';
+        botState.connectedAt = new Date().toISOString();
+      }
+
+      logger.log('Webhook registered successfully');
+      return webhookHandler;
+    } catch (error) {
+      const retryable = isRetryableTelegramError(error);
+      const delayMilliseconds = Math.min(5000 * attempt, 30000);
+
+      if (botState) {
+        botState.status = retryable ? 'retrying' : 'failed';
+        botState.lastError = toRuntimeError(error);
+      }
+
+      logger.error('Webhook registration failed', {
+        attempt,
+        code: error?.code,
+        message: error?.message ?? error
+      });
+
+      if (!retryable) {
+        throw error;
+      }
+
+      logger.log(`Retrying webhook registration in ${delayMilliseconds}ms...`);
+      await sleep(delayMilliseconds);
+    }
+  }
+
+  return null;
 }
 
 function createBotApp(config) {
@@ -70,10 +161,13 @@ function createBotApp(config) {
 function createRuntimeApp(config, options = {}) {
   const processStartedAt = options.processStartedAt ?? Date.now();
   const { bot, sessionStore } = createBotApp(config);
+  const botState = createBotState(config);
   const dashboardController = createDashboardController({
     sessionStore,
     processStartedAt,
-    gameConfig: config.game
+    gameConfig: config.game,
+    botState,
+    webhookPath: config.telegram.webhookPath
   });
   const dashboardServer = createDashboardServer({
     controller: dashboardController,
@@ -84,6 +178,8 @@ function createRuntimeApp(config, options = {}) {
   return {
     bot,
     sessionStore,
+    botState,
+    controller: dashboardController,
     dashboardServer,
     processStartedAt
   };
@@ -92,7 +188,7 @@ function createRuntimeApp(config, options = {}) {
 async function main() {
   const config = loadEnv();
   const runtime = createRuntimeApp(config);
-  const { bot, dashboardServer } = runtime;
+  const { bot, botState, controller, dashboardServer } = runtime;
 
   let shuttingDown = false;
   let botStarted = false;
@@ -112,12 +208,28 @@ async function main() {
 
   await dashboardServer.start();
 
-  launchBotWithRetry(bot, {
-    shouldStop: () => shuttingDown,
-    logger: console
-  })
-    .then((started) => {
-      botStarted = started;
+  Promise.resolve()
+    .then(async () => {
+      if (config.telegram.mode === 'webhook') {
+        const webhookHandler = await registerWebhookWithRetry(bot, config.telegram, {
+          shouldStop: () => shuttingDown,
+          logger: console,
+          botState
+        });
+
+        if (webhookHandler) {
+          controller.setWebhookHandler(webhookHandler);
+          botStarted = true;
+        }
+
+        return;
+      }
+
+      botStarted = await launchBotWithRetry(bot, {
+        shouldStop: () => shuttingDown,
+        logger: console,
+        botState
+      });
     })
     .catch(async (error) => {
       console.error('Fatal bot startup error', error);
@@ -151,6 +263,9 @@ module.exports = {
   createRuntimeApp,
   main,
   sleep,
+  createBotState,
+  toRuntimeError,
   isRetryableTelegramError,
-  launchBotWithRetry
+  launchBotWithRetry,
+  registerWebhookWithRetry
 };

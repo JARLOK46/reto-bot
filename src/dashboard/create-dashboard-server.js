@@ -34,7 +34,7 @@ function createDashboardServer(options = {}) {
       });
 
       const address = server.address();
-      logger.info?.('Dashboard server listening', {
+      logger.info?.('HTTP keepalive server listening', {
         host,
         port: address?.port
       });
