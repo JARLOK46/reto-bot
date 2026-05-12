@@ -1,9 +1,12 @@
+const dns = require('node:dns');
 const { Telegraf } = require('telegraf');
 const { loadEnv } = require('./config/env');
 const { createSessionStore } = require('./session/session-store');
 const { registerHandlers } = require('./handlers/register-handlers');
 const { createDashboardController } = require('./dashboard/dashboard-controller');
 const { createDashboardServer } = require('./dashboard/create-dashboard-server');
+
+dns.setDefaultResultOrder('ipv4first');
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
