@@ -62,6 +62,10 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function sumValues(items) {
+  return items.reduce((total, item) => total + (item.value ?? 0), 0);
+}
+
 function buildTrendPoints(snapshot) {
   const historyScores = (snapshot.observability?.sessionHistory ?? [])
     .slice(0, 6)
@@ -121,6 +125,39 @@ function buildFilterGroups(snapshot, bot) {
       ]
     }
   ];
+}
+
+function buildSessionBreakdown(snapshot) {
+  const counts = snapshot.sessions?.counts ?? {};
+  const items = [
+    { label: 'Activas', value: counts.active ?? 0, color: 'primary' },
+    { label: 'Terminadas', value: counts.ended ?? 0, color: 'cyan' },
+    { label: 'Expiradas', value: counts.expired ?? 0, color: 'accent' }
+  ];
+  const total = Math.max(1, sumValues(items));
+
+  return items.map((item) => ({
+    ...item,
+    percent: clampPercent((item.value / total) * 100)
+  }));
+}
+
+function buildActivityBars(summary, counts, recentErrors, recentEvents) {
+  const items = [
+    { label: 'Chats', value: summary.totalChats ?? 0 },
+    { label: 'Inicios', value: summary.totalStarts ?? 0 },
+    { label: 'Aciertos', value: summary.totalCorrectAnswers ?? 0 },
+    { label: 'Fallos', value: summary.totalWrongAnswers ?? 0 },
+    { label: 'Activas', value: counts.active ?? 0 },
+    { label: 'Eventos', value: recentEvents.length ?? 0 },
+    { label: 'Errores', value: recentErrors.length ?? 0 }
+  ];
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+
+  return items.map((item) => ({
+    ...item,
+    percent: clampPercent((item.value / maxValue) * 100)
+  }));
 }
 
 function createDashboardPresenter() {
@@ -224,21 +261,32 @@ function createDashboardPresenter() {
           caption: 'Tendencia del proceso actual',
           points: buildTrendPoints(snapshot)
         },
+        sessionBreakdown: buildSessionBreakdown(snapshot),
+        activityBars: buildActivityBars(summary, counts, recentErrors, recentEvents),
         operationalKpis: [
           {
             label: 'Activas',
             value: counts.active ?? 0,
-            detail: 'Sesiones vivas ahora'
+            detail: 'Sesiones vivas ahora',
+            tone: 'primary'
           },
           {
             label: 'Chats visibles',
             value: summary.totalChats ?? 0,
-            detail: 'Con interacción registrada'
+            detail: 'Con interacción registrada',
+            tone: 'cyan'
           },
           {
             label: 'Errores recientes',
             value: snapshot.observability?.recentErrors?.length ?? 0,
-            detail: 'Incidentes del proceso'
+            detail: 'Incidentes del proceso',
+            tone: 'accent'
+          },
+          {
+            label: 'Eventos recientes',
+            value: recentEvents.length,
+            detail: 'Actividad visible',
+            tone: 'neutral'
           }
         ],
         runtimeTargets: [
