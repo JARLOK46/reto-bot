@@ -142,9 +142,9 @@ test('dashboard server renderiza HTML administrativo con estado y sesiones', asy
 
       assert.equal(dashboardResponse.status, 200);
       assert.match(dashboardHtml, /Centro de control del bot/i);
-      assert.match(dashboardHtml, /Turnos en vivo/i);
-      assert.match(dashboardHtml, /Actividad reciente por chat/i);
-      assert.match(dashboardHtml, /ETIMEDOUT/i);
+      assert.match(dashboardHtml, /Vista general de sesiones y salud del bot/i);
+      assert.match(dashboardHtml, /Chats y usuarios visibles/i);
+      assert.match(dashboardHtml, /Reintentando/i);
       assert.match(dashboardHtml, /42/i);
     }
   );
