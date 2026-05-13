@@ -1,17 +1,23 @@
+const { createDashboardPresenter } = require('./dashboard-presenter');
+const { renderDashboardPage } = require('./dashboard-view');
+
 function writeJson(response, statusCode, payload) {
   response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(payload));
 }
 
-function writeText(response, statusCode, payload) {
-  response.writeHead(statusCode, { 'Content-Type': 'text/plain; charset=utf-8' });
+function writeHtml(response, statusCode, payload) {
+  response.writeHead(statusCode, { 'Content-Type': 'text/html; charset=utf-8' });
   response.end(payload);
 }
 
 function createDashboardController(options = {}) {
   const now = options.now ?? (() => Date.now());
   let webhookHandler = options.webhookHandler ?? null;
+  const presenter = options.presenter ?? createDashboardPresenter();
 
+  // Snapshot serializable del proceso actual. El estado del juego sigue siendo
+  // efímero: esto solo expone lo que vive en memoria en ESTE proceso.
   function buildSnapshot() {
     return options.sessionStore.getSnapshot({
       now: now(),
@@ -20,15 +26,16 @@ function createDashboardController(options = {}) {
     });
   }
 
+  // Payload corto y útil para health checks humanos o automáticos.
   function buildHealthPayload() {
-    const snapshot = buildSnapshot();
-    const botState = options.botState ?? {};
+    const snapshot = buildDashboardSnapshot();
+    const botState = snapshot.telegram ?? {};
 
     return {
       ok: true,
       service: 'reto-bot',
       generatedAt: new Date(now()).toISOString(),
-      uptimeSeconds: snapshot.uptimeSeconds,
+      uptimeSeconds: snapshot.sessions?.uptimeSeconds ?? 0,
       telegram: {
         mode: botState.mode ?? 'unknown',
         status: botState.status ?? 'unknown',
@@ -37,11 +44,20 @@ function createDashboardController(options = {}) {
         lastError: botState.lastError ?? null
       },
       sessions: {
-        total: snapshot.counts?.total ?? 0,
-        active: snapshot.counts?.active ?? 0,
-        ended: snapshot.counts?.ended ?? 0,
-        expired: snapshot.counts?.expired ?? 0
+        total: snapshot.sessions?.counts?.total ?? 0,
+        active: snapshot.sessions?.counts?.active ?? 0,
+        ended: snapshot.sessions?.counts?.ended ?? 0,
+        expired: snapshot.sessions?.counts?.expired ?? 0
       }
+    };
+  }
+
+  function buildDashboardSnapshot() {
+    return {
+      generatedAt: new Date(now()).toISOString(),
+      telegram: options.botState ?? null,
+      sessions: buildSnapshot(),
+      observability: options.observabilityStore?.getSnapshot() ?? null
     };
   }
 
@@ -53,6 +69,8 @@ function createDashboardController(options = {}) {
       const requestUrl = new URL(request.url, 'http://127.0.0.1');
       const isHealthRoute = requestUrl.pathname === '/' || requestUrl.pathname === '/health' || requestUrl.pathname === '/api/health';
 
+      // En modo webhook, Telegram entrega updates por POST al path configurado.
+      // Si el handler todavía no quedó listo, devolvemos 503 para que sea obvio.
       if (request.method === 'POST' && requestUrl.pathname === options.webhookPath) {
         if (!webhookHandler) {
           writeJson(response, 503, { ok: false, error: 'Webhook handler not ready' });
@@ -74,15 +92,12 @@ function createDashboardController(options = {}) {
       }
 
       if (requestUrl.pathname === '/api/snapshot') {
-        writeJson(response, 200, {
-          ...buildSnapshot(),
-          telegram: options.botState ?? null
-        });
+        writeJson(response, 200, buildDashboardSnapshot());
         return;
       }
 
       if (requestUrl.pathname === '/dashboard') {
-        writeText(response, 410, 'Dashboard removed. Use /health or /api/snapshot.');
+        writeHtml(response, 200, renderDashboardPage(presenter.present(buildDashboardSnapshot())));
         return;
       }
 

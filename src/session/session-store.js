@@ -34,6 +34,8 @@ function createSessionStore(options = {}) {
       status: session.status,
       score: session.score,
       level: session.level,
+      startedAt: session.startedAt ?? null,
+      answeredCount: session.answeredCount ?? 0,
       scoreIncrement: session.scoreIncrement,
       turn: toSerializableTurn(session.turn, now)
     };

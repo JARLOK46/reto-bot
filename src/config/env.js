@@ -7,6 +7,8 @@ const DEFAULT_WEBHOOK_PATH = '/telegram/webhook';
 
 dotenv.config();
 
+// Convierte variables numéricas opcionales y mantiene un mensaje de error claro
+// cuando el valor existe pero no tiene formato válido.
 function parseInteger(value, fallback, name) {
   if (value === undefined || value === '') {
     return fallback;
@@ -21,6 +23,7 @@ function parseInteger(value, fallback, name) {
   return parsed;
 }
 
+// Normaliza rutas para webhook/HTTP, asegurando que siempre comiencen con '/'.
 function normalizePath(value, fallback) {
   const path = (value ?? fallback ?? '').trim();
 
@@ -31,6 +34,7 @@ function normalizePath(value, fallback) {
   return path.startsWith('/') ? path : `/${path}`;
 }
 
+// Elimina espacios y el slash final para construir URLs consistentes.
 function normalizeUrl(value) {
   const normalized = String(value ?? '').trim().replace(/\/$/, '');
 
@@ -54,8 +58,14 @@ function loadEnv() {
     DEFAULT_TURN_TIMEOUT_SECONDS,
     'TURN_TIMEOUT_SECONDS'
   );
+
+  // En hosting tipo Render el puerto real viene por PORT. Localmente permitimos
+  // usar DASHBOARD_PORT para el pequeño servidor HTTP de salud/webhook.
   const portValue = process.env.PORT ?? process.env.DASHBOARD_PORT;
   const dashboardPort = parseInteger(portValue, DEFAULT_DASHBOARD_PORT, 'PORT');
+
+  // Si existe una URL pública, asumimos webhook por defecto. Sin URL pública,
+  // el modo por defecto es polling para facilitar pruebas locales.
   const webhookBaseUrl = normalizeUrl(process.env.WEBHOOK_BASE_URL ?? process.env.RENDER_EXTERNAL_URL);
   const telegramMode = (process.env.TELEGRAM_MODE ?? (webhookBaseUrl ? 'webhook' : 'polling')).trim().toLowerCase();
   const webhookPath = normalizePath(process.env.WEBHOOK_PATH, DEFAULT_WEBHOOK_PATH);

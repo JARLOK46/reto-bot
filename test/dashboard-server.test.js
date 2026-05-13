@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const { createDashboardController } = require('../src/dashboard/dashboard-controller');
 const { createDashboardServer } = require('../src/dashboard/create-dashboard-server');
+const { createObservabilityStore } = require('../src/observability/observability-store');
 const { createSessionStore } = require('../src/session/session-store');
 
 async function withServer(options, run) {
@@ -25,11 +26,14 @@ async function withServer(options, run) {
 
 test('dashboard server expone health y snapshot JSON del proceso actual', async () => {
   const sessionStore = createSessionStore();
+  const observabilityStore = createObservabilityStore({ now: () => 1700000001000 });
   sessionStore.set(1001, {
     chatId: 1001,
     status: 'active',
     score: 5,
     level: 1,
+    startedAt: 1699999999000,
+    answeredCount: 3,
     scoreIncrement: 1,
     turn: {
       id: 'turn-1',
@@ -46,6 +50,7 @@ test('dashboard server expone health y snapshot JSON del proceso actual', async 
       processStartedAt: 1700000000000,
       gameConfig: { turnTimeoutSeconds: 15, scoreIncrement: 1 },
       now: () => 1700000001000,
+      observabilityStore,
       botState: {
         mode: 'polling',
         status: 'connected',
@@ -72,23 +77,26 @@ test('dashboard server expone health y snapshot JSON del proceso actual', async 
       assert.equal(snapshotResponse.status, 200);
       const snapshot = await snapshotResponse.json();
 
-      assert.equal(snapshot.counts.total, 1);
-      assert.equal(snapshot.counts.active, 1);
-      assert.equal(snapshot.sessions[0].turn.remainingMs, 4000);
-      assert.equal(snapshot.sessions[0].turn.timeoutId, undefined);
-      assert.match(snapshot.emptyState.message, /memoria efimera|Snapshot en memoria/i);
+      assert.equal(snapshot.sessions.counts.total, 1);
+      assert.equal(snapshot.sessions.counts.active, 1);
+      assert.equal(snapshot.sessions.sessions[0].turn.remainingMs, 4000);
+      assert.equal(snapshot.sessions.sessions[0].turn.timeoutId, undefined);
+      assert.match(snapshot.sessions.emptyState.message, /memoria efimera|Snapshot en memoria/i);
       assert.equal(snapshot.telegram.status, 'connected');
     }
   );
 });
 
-test('keepalive server responde en raiz y marca dashboard como removido', async () => {
+test('dashboard server renderiza HTML administrativo con estado y sesiones', async () => {
   const sessionStore = createSessionStore();
+  const observabilityStore = createObservabilityStore({ now: () => 1700000002000 });
   sessionStore.set(42, {
     chatId: 42,
     status: 'active',
     score: 9,
     level: 1,
+    startedAt: 1700000000000,
+    answeredCount: 2,
     scoreIncrement: 1,
     turn: {
       id: 'turn-active',
@@ -105,6 +113,7 @@ test('keepalive server responde en raiz y marca dashboard como removido', async 
       processStartedAt: 1700000000000,
       gameConfig: { turnTimeoutSeconds: 15, scoreIncrement: 1 },
       now: () => 1700000002000,
+      observabilityStore,
       botState: {
         mode: 'webhook',
         status: 'retrying',
@@ -128,11 +137,15 @@ test('keepalive server responde en raiz y marca dashboard como removido', async 
       assert.equal(rootPayload.telegram.status, 'retrying');
       assert.equal(rootPayload.telegram.lastError.code, 'ETIMEDOUT');
 
-      const removedResponse = await fetch(`${baseUrl}/dashboard`);
-      const removedMessage = await removedResponse.text();
+      const dashboardResponse = await fetch(`${baseUrl}/dashboard`);
+      const dashboardHtml = await dashboardResponse.text();
 
-      assert.equal(removedResponse.status, 410);
-      assert.match(removedMessage, /Dashboard removed/i);
+      assert.equal(dashboardResponse.status, 200);
+      assert.match(dashboardHtml, /Centro de control del bot/i);
+      assert.match(dashboardHtml, /Turnos en vivo/i);
+      assert.match(dashboardHtml, /Actividad reciente por chat/i);
+      assert.match(dashboardHtml, /ETIMEDOUT/i);
+      assert.match(dashboardHtml, /42/i);
     }
   );
 });
@@ -167,6 +180,7 @@ test('keepalive server devuelve 503 en webhook antes de registrar handler', asyn
 
 test('keepalive server expone snapshot cuando no hay sesiones en memoria', async () => {
   const sessionStore = createSessionStore();
+  const observabilityStore = createObservabilityStore({ now: () => 1700000010000 });
 
   await withServer(
     {
@@ -174,6 +188,7 @@ test('keepalive server expone snapshot cuando no hay sesiones en memoria', async
       processStartedAt: 1700000000000,
       gameConfig: { turnTimeoutSeconds: 20, scoreIncrement: 2 },
       now: () => 1700000010000,
+      observabilityStore,
       webhookPath: '/telegram/webhook'
     },
     async (baseUrl) => {
@@ -181,10 +196,10 @@ test('keepalive server expone snapshot cuando no hay sesiones en memoria', async
       const snapshot = await snapshotResponse.json();
 
       assert.equal(snapshotResponse.status, 200);
-      assert.equal(snapshot.counts.total, 0);
-      assert.equal(snapshot.config.turnTimeoutSeconds, 20);
-      assert.equal(snapshot.config.scoreIncrement, 2);
-      assert.match(snapshot.emptyState.message, /pudo perderse si el proceso reinicio/i);
+      assert.equal(snapshot.sessions.counts.total, 0);
+      assert.equal(snapshot.sessions.config.turnTimeoutSeconds, 20);
+      assert.equal(snapshot.sessions.config.scoreIncrement, 2);
+      assert.match(snapshot.sessions.emptyState.message, /pudo perderse si el proceso reinicio/i);
     }
   );
 });

@@ -34,7 +34,7 @@ function isIgnorableCallbackQueryError(error) {
   return /query is too old|query ID is invalid|response timeout expired/i.test(description);
 }
 
-function createTurnFlow({ sessionStore, gameConfig = {} }) {
+function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
   if (!sessionStore) {
     throw new Error('sessionStore is required.');
   }
@@ -63,6 +63,8 @@ function createTurnFlow({ sessionStore, gameConfig = {} }) {
         return;
       }
 
+      observabilityStore?.recordSessionExpired(endedSession);
+
       await ctx.telegram.sendMessage(chatId, formatExpiredTurnMessage({ score: endedSession.score }));
     });
   }
@@ -79,6 +81,8 @@ function createTurnFlow({ sessionStore, gameConfig = {} }) {
       score,
       scoreIncrement,
       level,
+      startedAt: Date.now(),
+      answeredCount: 0,
       status: 'active',
       turn
     });
@@ -87,6 +91,8 @@ function createTurnFlow({ sessionStore, gameConfig = {} }) {
   async function startSession(ctx) {
     const chatId = ctx.chat.id;
     const session = createActiveSession(chatId, 0);
+
+    observabilityStore?.recordSessionStarted(session);
 
     scheduleTimeout(ctx, chatId, session.turn.id);
 
@@ -135,6 +141,13 @@ function createTurnFlow({ sessionStore, gameConfig = {} }) {
     if (result.kind === 'wrong') {
       const endedSession = sessionStore.endSession(chatId, { status: 'ended' });
 
+      if (endedSession) {
+        observabilityStore?.recordAnswerWrong(endedSession, {
+          expectedAnswer: result.expectedAnswer,
+          finalScore: endedSession.score
+        });
+      }
+
       if (input.source === 'callback') {
         await safeAnswerCallbackQuery(ctx, 'Respuesta incorrecta.');
       }
@@ -163,6 +176,7 @@ function createTurnFlow({ sessionStore, gameConfig = {} }) {
       ...session,
       score: nextScore,
       level: nextLevel,
+      answeredCount: (session.answeredCount ?? 0) + 1,
       status: 'active',
       turn: nextTurn
     });
@@ -174,6 +188,8 @@ function createTurnFlow({ sessionStore, gameConfig = {} }) {
     }
 
     const activeSession = sessionStore.get(chatId);
+
+    observabilityStore?.recordAnswerCorrect(activeSession, { leveledUp });
 
     await ctx.reply(
       formatCorrectAnswerMessage({
