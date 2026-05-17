@@ -46,6 +46,8 @@ function normalizeUrl(value) {
 }
 
 function loadEnv() {
+  // BOT_TOKEN es la única variable realmente obligatoria para que el bot pueda
+  // hablar con Telegram.
   const botToken = process.env.BOT_TOKEN;
 
   if (!botToken) {
@@ -91,6 +93,8 @@ function loadEnv() {
     throw new Error('WEBHOOK_BASE_URL is required when TELEGRAM_MODE=webhook.');
   }
 
+  // Se devuelve un objeto normalizado para que el resto del sistema no dependa
+  // directamente de process.env ni tenga que repetir validaciones.
   return {
     botToken,
     dashboard: {

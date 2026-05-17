@@ -1,8 +1,11 @@
+// Store en memoria para las sesiones por chat. Encapsula el Map y sus timers
+// asociados para que el resto del proyecto no manipule esos detalles directamente.
 function createSessionStore(options = {}) {
   const setTimeoutFn = options.setTimeoutFn ?? setTimeout;
   const clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
   const sessions = new Map();
 
+  // Normaliza fechas para poder aceptar Date o número sin duplicar lógica.
   function normalizeTimestamp(value) {
     if (value instanceof Date) {
       return value.getTime();
@@ -11,6 +14,7 @@ function createSessionStore(options = {}) {
     return value ?? Date.now();
   }
 
+  // Convierte un turno interno en una versión segura para exponer por API o dashboard.
   function toSerializableTurn(turn, now) {
     if (!turn) {
       return null;
@@ -28,6 +32,8 @@ function createSessionStore(options = {}) {
     };
   }
 
+  // Convierte una sesión interna en un objeto “presentable”, sin detalles como
+  // timeoutId que solo interesan al runtime.
   function toSerializableSession(session, now) {
     return {
       chatId: session.chatId,
@@ -41,6 +47,7 @@ function createSessionStore(options = {}) {
     };
   }
 
+  // Resume cuántas sesiones hay por estado, para no recalcular esto en cada capa.
   function countSessionsByStatus(snapshotSessions) {
     return snapshotSessions.reduce(
       (counts, session) => {
@@ -69,6 +76,7 @@ function createSessionStore(options = {}) {
     );
   }
 
+  // Antes de reemplazar o cerrar una sesión, siempre limpiamos su timer activo.
   function clearSessionTimeout(session) {
     if (!session?.turn?.timeoutId) {
       return;
@@ -93,6 +101,7 @@ function createSessionStore(options = {}) {
       return session;
     },
     scheduleTurnTimeout(chatId, turnId, timeoutMs, onExpire) {
+      // Solo programa el timeout si la sesión y el turno siguen existiendo.
       const session = sessions.get(chatId);
 
       if (!session || session.turn?.id !== turnId) {
@@ -104,6 +113,7 @@ function createSessionStore(options = {}) {
       const timeoutId = setTimeoutFn(() => {
         const currentSession = sessions.get(chatId);
 
+        // Si durante la espera el turno cambió, este timeout ya quedó obsoleto.
         if (!currentSession || currentSession.status !== 'active' || currentSession.turn?.id !== turnId) {
           return;
         }
@@ -168,6 +178,7 @@ function createSessionStore(options = {}) {
       return Array.from(sessions.values(), (session) => toSerializableSession(session, now));
     },
     getSnapshot(options = {}) {
+      // Snapshot = foto instantánea del proceso actual, ideal para dashboard o API.
       const now = normalizeTimestamp(options.now);
       const processStartedAt = normalizeTimestamp(options.processStartedAt);
       const snapshotSessions = this.listSessions({ now });

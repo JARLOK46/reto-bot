@@ -7,6 +7,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+// Render helper para listas repetitivas con empty state integrado.
 function renderRows(items, emptyMessage, rowRenderer) {
   if (!items.length) {
     return `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;
@@ -15,6 +16,7 @@ function renderRows(items, emptyMessage, rowRenderer) {
   return items.map(rowRenderer).join('');
 }
 
+// Dibuja la gráfica principal de tendencia usando SVG puro.
 function renderTrend(points) {
   const safePoints = points.length ? points : [{ label: 'P1', value: 0, percent: 0 }];
   const width = 320;
@@ -60,6 +62,7 @@ function renderTrend(points) {
   `;
 }
 
+// Dibuja la distribución de sesiones como filas + barra apilada.
 function renderBreakdown(items) {
   return `
     <div class="breakdown-card-inner">
@@ -79,6 +82,7 @@ function renderBreakdown(items) {
   `;
 }
 
+// Dibuja barras simples para comparar métricas operativas sin depender de librerías externas.
 function renderActivityBars(items) {
   return `
     <div class="bars-card-inner">
@@ -95,6 +99,8 @@ function renderActivityBars(items) {
   `;
 }
 
+// Genera el HTML completo del dashboard. La vista solo pinta; la preparación de
+// datos ocurre antes, en el presenter.
 function renderDashboardPage(viewModel) {
   const statusTone = viewModel.bot.status === 'connected'
     ? 'success'

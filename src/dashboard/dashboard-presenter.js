@@ -9,6 +9,7 @@ function formatDateTime(timestamp) {
   });
 }
 
+// Convierte segundos “crudos” a una etiqueta corta amigable para la UI.
 function formatRelativeSeconds(seconds) {
   if (!Number.isFinite(seconds)) {
     return 'n/a';
@@ -23,6 +24,7 @@ function formatRelativeSeconds(seconds) {
   return `${minutes}m ${remainingSeconds}s`;
 }
 
+// Traduce el estado interno de una sesión a una etiqueta visual.
 function formatSessionStatus(status) {
   return status === 'active'
     ? 'Activa'
@@ -33,6 +35,7 @@ function formatSessionStatus(status) {
         : 'Sin estado';
 }
 
+// Traduce el estado técnico del bot a un texto entendible para el dashboard.
 function formatBotStatus(status) {
   return status === 'connected'
     ? 'Conectado'
@@ -45,6 +48,7 @@ function formatBotStatus(status) {
           : 'En espera';
 }
 
+// Muestra cuánto queda de un turno sin exponer milisegundos directamente.
 function formatTurnRemaining(turn) {
   if (!turn) {
     return 'Sin turno';
@@ -58,14 +62,18 @@ function formatTurnRemaining(turn) {
   return `${seconds}s`;
 }
 
+// Asegura que todos los porcentajes para gráficas queden entre 0 y 100.
 function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+// Suma valores de una lista. Se usa para preparar breakdowns visuales.
 function sumValues(items) {
   return items.reduce((total, item) => total + (item.value ?? 0), 0);
 }
 
+// Construye los puntos de la gráfica principal tomando historial reciente y un
+// poco de la actividad todavía activa.
 function buildTrendPoints(snapshot) {
   const historyScores = (snapshot.observability?.sessionHistory ?? [])
     .slice(0, 6)
@@ -87,6 +95,8 @@ function buildTrendPoints(snapshot) {
   }));
 }
 
+// Sidebar: organiza bloques cortos de contexto para que el usuario entienda el
+// estado general sin leer tablas grandes.
 function buildFilterGroups(snapshot, bot) {
   const counts = snapshot.sessions?.counts ?? {};
   const summary = snapshot.observability?.summary ?? {};
@@ -127,6 +137,7 @@ function buildFilterGroups(snapshot, bot) {
   ];
 }
 
+// Prepara la distribución visual de sesiones por estado.
 function buildSessionBreakdown(snapshot) {
   const counts = snapshot.sessions?.counts ?? {};
   const items = [
@@ -142,6 +153,7 @@ function buildSessionBreakdown(snapshot) {
   }));
 }
 
+// Prepara barras comparativas simples para actividad global del proceso.
 function buildActivityBars(summary, counts, recentErrors, recentEvents) {
   const items = [
     { label: 'Chats', value: summary.totalChats ?? 0 },
@@ -160,9 +172,11 @@ function buildActivityBars(summary, counts, recentErrors, recentEvents) {
   }));
 }
 
+// Presenter = traductor entre datos crudos del backend y datos listos para la UI.
 function createDashboardPresenter() {
   return {
     present(snapshot) {
+      // Lista principal para supervisar el juego en vivo.
       const activeSessions = [...(snapshot.sessions?.sessions ?? [])]
         .filter((session) => session.status === 'active')
         .sort((left, right) => (left.turn?.remainingMs ?? Number.MAX_SAFE_INTEGER) - (right.turn?.remainingMs ?? Number.MAX_SAFE_INTEGER))
@@ -177,6 +191,7 @@ function createDashboardPresenter() {
           answeredCount: session.answeredCount ?? 0
         }));
 
+      // Lista de chats recientes para tabla y ranking visual.
       const recentChats = [...(snapshot.observability?.chats ?? [])]
         .slice(0, 8)
         .map((chat) => ({
@@ -191,6 +206,7 @@ function createDashboardPresenter() {
           lastSeenAt: formatDateTime(chat.lastSeenAt)
         }));
 
+      // Pequeño ranking para la franja de “chats destacados”.
       const topChats = [...recentChats]
         .sort((left, right) => (right.currentScore + right.correctAnswers) - (left.currentScore + left.correctAnswers))
         .slice(0, 5)
@@ -239,6 +255,7 @@ function createDashboardPresenter() {
       const continuityRate = clampPercent((((summary.totalCorrectAnswers ?? 0) + 1) / ((summary.totalCorrectAnswers ?? 0) + (summary.totalWrongAnswers ?? 0) + 1)) * 100);
       const stabilityRate = clampPercent(((healthyRuns - (snapshot.observability?.recentErrors?.length ?? 0)) / healthyRuns) * 100);
 
+      // La vista recibe un objeto ya cocinado, para no meter lógica compleja dentro del HTML.
       return {
         title: 'Centro de control del bot',
         refreshSeconds: 15,

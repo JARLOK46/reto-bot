@@ -16,24 +16,30 @@ const {
   resolveTurnAnswer
 } = require('../game/subtraction-game');
 
+// Crea el teclado inline visible en Telegram a partir de las opciones del turno.
 function createTurnKeyboard(turn) {
   return Markup.inlineKeyboard(
     turn.choices.map((choice) => [Markup.button.callback(String(choice), createAnswerCallbackData(turn.id, choice))])
   );
 }
 
+// Empaqueta el teclado en el formato reply_markup que espera Telegraf.
 function createReplyOptions(turn) {
   return {
     reply_markup: createTurnKeyboard(turn).reply_markup
   };
 }
 
+// Algunos callbacks viejos de Telegram ya no se pueden responder; esos errores
+// no deben tumbar el flujo principal del bot.
 function isIgnorableCallbackQueryError(error) {
   const description = error?.response?.description ?? error?.description ?? '';
 
   return /query is too old|query ID is invalid|response timeout expired/i.test(description);
 }
 
+// Coordina la conversación del juego. Aquí se unen Telegram, la lógica del
+// dominio, la sesión en memoria y la observabilidad del dashboard.
 function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
   if (!sessionStore) {
     throw new Error('sessionStore is required.');
@@ -43,6 +49,8 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
   const turnTimeoutSeconds = gameConfig.turnTimeoutSeconds ?? DEFAULT_TURN_TIMEOUT_SECONDS;
   const turnTimeoutMs = turnTimeoutSeconds * 1000;
 
+  // Responde un callback sin romper el flujo si Telegram ya considera vencida
+  // la interacción del botón.
   async function safeAnswerCallbackQuery(ctx, message) {
     try {
       await ctx.answerCbQuery(message);
@@ -55,6 +63,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     }
   }
 
+  // Programa el final automático del turno actual.
   function scheduleTimeout(ctx, chatId, turnId) {
     sessionStore.scheduleTurnTimeout(chatId, turnId, turnTimeoutMs, async () => {
       const endedSession = sessionStore.endSession(chatId, { status: 'expired' });
@@ -69,6 +78,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     });
   }
 
+  // Construye una sesión inicial lista para jugar.
   function createActiveSession(chatId, score) {
     const level = getLevelForScore(score);
     const turn = createTurn({
@@ -88,6 +98,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     });
   }
 
+  // /start siempre crea una sesión nueva desde cero y envía la primera pregunta.
   async function startSession(ctx) {
     const chatId = ctx.chat.id;
     const session = createActiveSession(chatId, 0);
@@ -109,6 +120,8 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     );
   }
 
+  // Punto central de decisión: analiza una respuesta y decide si la sesión sigue,
+  // termina o debe ignorarse por estar fuera de tiempo.
   async function processResolvedAnswer(ctx, input) {
     const chatId = ctx.chat.id;
     const session = sessionStore.get(chatId);
@@ -118,6 +131,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
       now: Date.now()
     });
 
+    // Si no existe sesión, la respuesta ya no tiene contexto válido.
     if (result.kind === 'missing') {
       if (input.source === 'callback') {
         await safeAnswerCallbackQuery(ctx, 'Ya no hay una sesion activa.');
@@ -128,6 +142,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
       return result;
     }
 
+    // stale = botón de un turno viejo; expired = turno vencido o sesión cerrada.
     if (result.kind === 'stale' || result.kind === 'expired') {
       if (input.source === 'callback') {
         await safeAnswerCallbackQuery(ctx, 'Ese turno ya no esta vigente.');
@@ -138,6 +153,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
       return result;
     }
 
+    // Una respuesta incorrecta cierra por completo la sesión actual.
     if (result.kind === 'wrong') {
       const endedSession = sessionStore.endSession(chatId, { status: 'ended' });
 
@@ -162,6 +178,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
       return result;
     }
 
+    // Si la respuesta fue correcta, calculamos el siguiente turno y lo dejamos activo.
     const nextScore = session.score + (session.scoreIncrement ?? scoreIncrement);
     const nextLevel = getLevelForScore(nextScore);
     const leveledUp = nextLevel > session.level;
@@ -205,6 +222,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     return result;
   }
 
+  // Maneja respuestas escritas manualmente por el usuario.
   async function processTextAnswer(ctx) {
     const text = ctx.message?.text ?? '';
 
@@ -218,6 +236,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     });
   }
 
+  // Maneja respuestas enviadas por botones inline.
   async function processCallbackAnswer(ctx) {
     const payload = parseAnswerCallbackData(ctx.callbackQuery?.data);
 

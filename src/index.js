@@ -48,6 +48,7 @@ function createBotState(config) {
 }
 
 function syncRuntimeError(observabilityStore, error, scope, title) {
+  // Copia el error a observabilidad en un formato consistente para dashboard y API.
   if (!observabilityStore || !error) {
     return;
   }
@@ -61,6 +62,7 @@ function syncRuntimeError(observabilityStore, error, scope, title) {
 }
 
 function syncRuntimeEvent(observabilityStore, event) {
+  // Atajo para no repetir chequeos nulos en cada llamada.
   observabilityStore?.recordRuntimeEvent(event);
 }
 
@@ -202,6 +204,8 @@ async function registerWebhookWithRetry(bot, telegramConfig, { shouldStop, logge
 }
 
 function createBotApp(config) {
+  // Aquí se ensamblan las piezas del bot, pero todavía no se arranca la conexión
+  // con Telegram. Solo se prepara el runtime base.
   const bot = new Telegraf(config.botToken);
   const sessionStore = createSessionStore();
   const observabilityStore = createObservabilityStore();
@@ -232,6 +236,7 @@ function createBotApp(config) {
 }
 
 function createRuntimeApp(config, options = {}) {
+  // Une capa Telegram + capa HTTP + observabilidad en una sola estructura.
   const processStartedAt = options.processStartedAt ?? Date.now();
   const { bot, sessionStore, observabilityStore } = createBotApp(config);
   const botState = createBotState(config);
@@ -263,6 +268,7 @@ function createRuntimeApp(config, options = {}) {
 }
 
 async function main() {
+  // main orquesta el orden de arranque y apagado del sistema completo.
   const config = loadEnv();
   const runtime = createRuntimeApp(config);
   const { bot, observabilityStore, botState, controller, dashboardServer } = runtime;
@@ -271,6 +277,7 @@ async function main() {
   let botStarted = false;
 
   async function shutdown(signal) {
+    // Evita apagar dos veces si Render manda múltiples señales.
     if (shuttingDown) {
       return;
     }
@@ -289,6 +296,7 @@ async function main() {
 
   Promise.resolve()
     .then(async () => {
+      // Elegimos el modo de conexión según la configuración ya validada.
       if (config.telegram.mode === 'webhook') {
         const webhookHandler = await registerWebhookWithRetry(bot, config.telegram, {
           shouldStop: () => shuttingDown,

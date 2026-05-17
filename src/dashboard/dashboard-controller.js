@@ -1,6 +1,8 @@
 const { createDashboardPresenter } = require('./dashboard-presenter');
 const { renderDashboardPage } = require('./dashboard-view');
 
+// Helpers mínimos de salida HTTP. Mantienen el controlador enfocado en decidir
+// QUÉ responder, no en repetir el cómo serializar cada formato.
 function writeJson(response, statusCode, payload) {
   response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(payload));
@@ -11,6 +13,8 @@ function writeHtml(response, statusCode, payload) {
   response.end(payload);
 }
 
+// Punto de entrada del runtime web. Recibe requests y decide si devolver salud,
+// snapshot, dashboard o delegar el POST del webhook al bot de Telegram.
 function createDashboardController(options = {}) {
   const now = options.now ?? (() => Date.now());
   let webhookHandler = options.webhookHandler ?? null;
@@ -53,6 +57,7 @@ function createDashboardController(options = {}) {
   }
 
   function buildDashboardSnapshot() {
+    // Junta en una sola “foto” toda la información que necesita el dashboard.
     return {
       generatedAt: new Date(now()).toISOString(),
       telegram: options.botState ?? null,
@@ -63,6 +68,7 @@ function createDashboardController(options = {}) {
 
   return {
     setWebhookHandler(handler) {
+      // El webhook real solo se conecta cuando Telegram termina de registrarse.
       webhookHandler = handler;
     },
     handle(request, response) {
@@ -81,6 +87,7 @@ function createDashboardController(options = {}) {
         return;
       }
 
+      // El resto de rutas son solo de lectura; cualquier otro método se rechaza.
       if (!['GET', 'HEAD'].includes(request.method)) {
         writeJson(response, 405, { error: 'Method Not Allowed' });
         return;
