@@ -2,12 +2,12 @@ const DEFAULT_MAX_EVENTS = 40;
 const DEFAULT_MAX_ERRORS = 20;
 const DEFAULT_MAX_HISTORY = 24;
 
-// Evita que el dashboard crezca sin límite. Conserva solo la ventana reciente.
+// Evita que el dashboard crezca sin límite. Solo conserva la ventana reciente.
 function clampList(items, maxItems) {
   return items.slice(0, maxItems);
 }
 
-// Convierte errores de distintas fuentes en un formato consistente para guardar.
+// Convierte errores de distintas fuentes en un formato consistente para guardarlos.
 function cloneError(error) {
   if (!error) {
     return null;
@@ -21,8 +21,8 @@ function cloneError(error) {
   };
 }
 
-// Store de observabilidad del proceso. Guarda eventos, errores y resúmenes por
-// chat para que el dashboard tenga contexto útil aunque no exista base de datos.
+// Store de observabilidad del proceso: guarda eventos, errores y resúmenes por
+// chat para que el dashboard tenga contexto útil aunque todavía no haya base de datos.
 function createObservabilityStore(options = {}) {
   const now = options.now ?? (() => Date.now());
   const maxEvents = options.maxEvents ?? DEFAULT_MAX_EVENTS;
@@ -38,7 +38,7 @@ function createObservabilityStore(options = {}) {
     return new Date(now()).toISOString();
   }
 
-  // Cada chat tiene una ficha agregada con su actividad reciente.
+  // Cada chat tiene su propia ficha agregada con actividad reciente.
   function ensureChat(chatId) {
     const normalizedChatId = String(chatId);
     const existing = chats.get(normalizedChatId);
@@ -66,7 +66,7 @@ function createObservabilityStore(options = {}) {
     return created;
   }
 
-  // Inserta un evento nuevo al inicio de la lista, como una bitácora reciente.
+  // Inserta eventos nuevos al inicio de la lista, como una bitácora reciente.
   function addEvent(event) {
     recentEvents.unshift({
       at: currentTimestamp(),
@@ -81,8 +81,8 @@ function createObservabilityStore(options = {}) {
     recentEvents.splice(maxEvents);
   }
 
-  // Registrar un error también genera un evento, porque en el dashboard suele
-  // ser útil verlo tanto como incidente como parte de la línea de tiempo.
+  // Registrar un error también genera un evento, porque en el dashboard conviene
+  // verlo como incidente y también dentro de la línea de tiempo.
   function addError(error) {
     const entry = {
       at: currentTimestamp(),
@@ -109,7 +109,7 @@ function createObservabilityStore(options = {}) {
     });
   }
 
-  // Historial corto de sesiones ya terminadas o expiradas.
+  // Historial corto de sesiones terminadas o expiradas.
   function addHistoryItem(item) {
     sessionHistory.unshift({
       at: currentTimestamp(),
@@ -239,8 +239,7 @@ function createObservabilityStore(options = {}) {
       addEvent(event);
     },
     getSnapshot() {
-      // Ordena los chats por última actividad para que el dashboard muestre
-      // primero lo más reciente y relevante.
+      // Ordena los chats por última actividad para mostrar primero lo más reciente.
       const visibleChats = Array.from(chats.values())
         .sort((left, right) => {
           const leftTime = left.lastSeenAt ? Date.parse(left.lastSeenAt) : 0;
@@ -248,7 +247,7 @@ function createObservabilityStore(options = {}) {
           return rightTime - leftTime;
         });
 
-      // Summary agrupa contadores globales para no recalcularlos en el presenter.
+      // Summary agrupa contadores globales para no recalcularlos después en el presenter.
       const summary = visibleChats.reduce(
         (accumulator, chat) => {
           accumulator.totalChats += 1;

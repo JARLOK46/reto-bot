@@ -7,7 +7,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-// Render helper para listas repetitivas con empty state integrado.
+// Helper para listas repetitivas con empty state integrado.
 function renderRows(items, emptyMessage, rowRenderer) {
   if (!items.length) {
     return `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;
@@ -62,7 +62,7 @@ function renderTrend(points) {
   `;
 }
 
-// Dibuja la distribución de sesiones como filas + barra apilada.
+// Dibuja la distribución de sesiones como filas más barra apilada.
 function renderBreakdown(items) {
   return `
     <div class="breakdown-card-inner">
@@ -99,8 +99,8 @@ function renderActivityBars(items) {
   `;
 }
 
-// Genera el HTML completo del dashboard. La vista solo pinta; la preparación de
-// datos ocurre antes, en el presenter.
+// Genera el HTML completo del dashboard. La vista solo pinta; la parte de
+// preparar datos ocurre antes, en el presenter.
 function renderDashboardPage(viewModel) {
   const statusTone = viewModel.bot.status === 'connected'
     ? 'success'

@@ -16,7 +16,7 @@ const {
   resolveTurnAnswer
 } = require('../game/subtraction-game');
 
-// Crea el teclado inline visible en Telegram a partir de las opciones del turno.
+// Crea el teclado inline de Telegram usando las opciones del turno.
 function createTurnKeyboard(turn) {
   return Markup.inlineKeyboard(
     turn.choices.map((choice) => [Markup.button.callback(String(choice), createAnswerCallbackData(turn.id, choice))])
@@ -30,7 +30,7 @@ function createReplyOptions(turn) {
   };
 }
 
-// Algunos callbacks viejos de Telegram ya no se pueden responder; esos errores
+// Algunos callbacks viejos de Telegram ya no se pueden responder y esos errores
 // no deben tumbar el flujo principal del bot.
 function isIgnorableCallbackQueryError(error) {
   const description = error?.response?.description ?? error?.description ?? '';
@@ -38,8 +38,8 @@ function isIgnorableCallbackQueryError(error) {
   return /query is too old|query ID is invalid|response timeout expired/i.test(description);
 }
 
-// Coordina la conversación del juego. Aquí se unen Telegram, la lógica del
-// dominio, la sesión en memoria y la observabilidad del dashboard.
+// Coordina toda la conversación del juego. Une Telegram, la lógica del dominio,
+// la sesión en memoria y la observabilidad del dashboard.
 function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
   if (!sessionStore) {
     throw new Error('sessionStore is required.');
@@ -120,8 +120,8 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
     );
   }
 
-  // Punto central de decisión: analiza una respuesta y decide si la sesión sigue,
-  // termina o debe ignorarse por estar fuera de tiempo.
+  // Punto central de decisión: analiza una respuesta y decide si la sesión
+  // sigue, termina o debe ignorarse por tiempo.
   async function processResolvedAnswer(ctx, input) {
     const chatId = ctx.chat.id;
     const session = sessionStore.get(chatId);
@@ -178,7 +178,7 @@ function createTurnFlow({ sessionStore, observabilityStore, gameConfig = {} }) {
       return result;
     }
 
-    // Si la respuesta fue correcta, calculamos el siguiente turno y lo dejamos activo.
+    // Si la respuesta fue correcta, calcula el siguiente turno y lo deja activo.
     const nextScore = session.score + (session.scoreIncrement ?? scoreIncrement);
     const nextLevel = getLevelForScore(nextScore);
     const leveledUp = nextLevel > session.level;

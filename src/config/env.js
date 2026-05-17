@@ -7,8 +7,8 @@ const DEFAULT_WEBHOOK_PATH = '/telegram/webhook';
 
 dotenv.config();
 
-// Convierte variables numéricas opcionales y mantiene un mensaje de error claro
-// cuando el valor existe pero no tiene formato válido.
+// Convierte variables numéricas opcionales y produce un error claro si el valor
+// existe pero viene mal formado.
 function parseInteger(value, fallback, name) {
   if (value === undefined || value === '') {
     return fallback;
@@ -23,7 +23,7 @@ function parseInteger(value, fallback, name) {
   return parsed;
 }
 
-// Normaliza rutas para webhook/HTTP, asegurando que siempre comiencen con '/'.
+// Normaliza rutas para webhook/HTTP y asegura que siempre empiecen con '/'.
 function normalizePath(value, fallback) {
   const path = (value ?? fallback ?? '').trim();
 
@@ -34,7 +34,7 @@ function normalizePath(value, fallback) {
   return path.startsWith('/') ? path : `/${path}`;
 }
 
-// Elimina espacios y el slash final para construir URLs consistentes.
+// Limpia la URL para evitar espacios o slashes sobrantes al final.
 function normalizeUrl(value) {
   const normalized = String(value ?? '').trim().replace(/\/$/, '');
 
@@ -46,8 +46,7 @@ function normalizeUrl(value) {
 }
 
 function loadEnv() {
-  // BOT_TOKEN es la única variable realmente obligatoria para que el bot pueda
-  // hablar con Telegram.
+  // BOT_TOKEN es obligatorio porque sin él el bot no puede hablar con Telegram.
   const botToken = process.env.BOT_TOKEN;
 
   if (!botToken) {
@@ -61,13 +60,13 @@ function loadEnv() {
     'TURN_TIMEOUT_SECONDS'
   );
 
-  // En hosting tipo Render el puerto real viene por PORT. Localmente permitimos
-  // usar DASHBOARD_PORT para el pequeño servidor HTTP de salud/webhook.
+  // En Render el puerto real llega por PORT. Localmente se usa DASHBOARD_PORT
+  // para el servidor HTTP del dashboard, salud y webhook.
   const portValue = process.env.PORT ?? process.env.DASHBOARD_PORT;
   const dashboardPort = parseInteger(portValue, DEFAULT_DASHBOARD_PORT, 'PORT');
 
-  // Si existe una URL pública, asumimos webhook por defecto. Sin URL pública,
-  // el modo por defecto es polling para facilitar pruebas locales.
+  // Si existe URL pública, asume webhook por defecto. Si no, usa polling
+  // para facilitar pruebas locales.
   const webhookBaseUrl = normalizeUrl(process.env.WEBHOOK_BASE_URL ?? process.env.RENDER_EXTERNAL_URL);
   const telegramMode = (process.env.TELEGRAM_MODE ?? (webhookBaseUrl ? 'webhook' : 'polling')).trim().toLowerCase();
   const webhookPath = normalizePath(process.env.WEBHOOK_PATH, DEFAULT_WEBHOOK_PATH);
@@ -93,8 +92,8 @@ function loadEnv() {
     throw new Error('WEBHOOK_BASE_URL is required when TELEGRAM_MODE=webhook.');
   }
 
-  // Se devuelve un objeto normalizado para que el resto del sistema no dependa
-  // directamente de process.env ni tenga que repetir validaciones.
+  // Devuelve un objeto ya normalizado para que el resto del sistema no dependa
+  // de process.env directamente ni repita validaciones.
   return {
     botToken,
     dashboard: {

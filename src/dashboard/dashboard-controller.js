@@ -1,8 +1,8 @@
 const { createDashboardPresenter } = require('./dashboard-presenter');
 const { renderDashboardPage } = require('./dashboard-view');
 
-// Helpers mínimos de salida HTTP. Mantienen el controlador enfocado en decidir
-// QUÉ responder, no en repetir el cómo serializar cada formato.
+// Estos helpers simplifican la salida HTTP. Así el controlador decide QUÉ
+// responder sin repetir cómo serializar JSON o HTML cada vez.
 function writeJson(response, statusCode, payload) {
   response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(payload));
@@ -13,15 +13,15 @@ function writeHtml(response, statusCode, payload) {
   response.end(payload);
 }
 
-// Punto de entrada del runtime web. Recibe requests y decide si devolver salud,
-// snapshot, dashboard o delegar el POST del webhook al bot de Telegram.
+// Punto de entrada del runtime web. Decide si devolver salud, snapshot,
+// dashboard o delegar el POST del webhook al bot de Telegram.
 function createDashboardController(options = {}) {
   const now = options.now ?? (() => Date.now());
   let webhookHandler = options.webhookHandler ?? null;
   const presenter = options.presenter ?? createDashboardPresenter();
 
-  // Snapshot serializable del proceso actual. El estado del juego sigue siendo
-  // efímero: esto solo expone lo que vive en memoria en ESTE proceso.
+  // Obtiene un snapshot serializable del proceso actual. El estado sigue
+  // siendo efímero: solo expone lo que vive en memoria en ESTE proceso.
   function buildSnapshot() {
     return options.sessionStore.getSnapshot({
       now: now(),
@@ -30,7 +30,7 @@ function createDashboardController(options = {}) {
     });
   }
 
-  // Payload corto y útil para health checks humanos o automáticos.
+  // Construye un payload corto para health checks humanos o automáticos.
   function buildHealthPayload() {
     const snapshot = buildDashboardSnapshot();
     const botState = snapshot.telegram ?? {};
@@ -57,7 +57,7 @@ function createDashboardController(options = {}) {
   }
 
   function buildDashboardSnapshot() {
-    // Junta en una sola “foto” toda la información que necesita el dashboard.
+    // Junta en una sola “foto” todo lo que necesita el dashboard.
     return {
       generatedAt: new Date(now()).toISOString(),
       telegram: options.botState ?? null,
@@ -76,7 +76,7 @@ function createDashboardController(options = {}) {
       const isHealthRoute = requestUrl.pathname === '/' || requestUrl.pathname === '/health' || requestUrl.pathname === '/api/health';
 
       // En modo webhook, Telegram entrega updates por POST al path configurado.
-      // Si el handler todavía no quedó listo, devolvemos 503 para que sea obvio.
+      // Si el handler todavía no quedó listo, devuelve 503 para que sea obvio.
       if (request.method === 'POST' && requestUrl.pathname === options.webhookPath) {
         if (!webhookHandler) {
           writeJson(response, 503, { ok: false, error: 'Webhook handler not ready' });
@@ -87,7 +87,7 @@ function createDashboardController(options = {}) {
         return;
       }
 
-      // El resto de rutas son solo de lectura; cualquier otro método se rechaza.
+      // El resto de rutas son de solo lectura; cualquier otro método se rechaza.
       if (!['GET', 'HEAD'].includes(request.method)) {
         writeJson(response, 405, { error: 'Method Not Allowed' });
         return;

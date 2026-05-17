@@ -1,8 +1,7 @@
 const http = require('node:http');
 
-// Crea un servidor HTTP mínimo usando el módulo nativo de Node. El objetivo no
-// es tener un framework web completo, sino un runtime simple para dashboard,
-// webhook y health checks.
+// Crea un servidor HTTP mínimo con el módulo nativo de Node. No busca un
+// framework completo, solo un runtime simple para dashboard, webhook y health checks.
 function createDashboardServer(options = {}) {
   const host = options.host ?? '0.0.0.0';
   const logger = options.logger ?? console;
@@ -15,7 +14,7 @@ function createDashboardServer(options = {}) {
   return {
     async start() {
       // Espera explícitamente a que el servidor quede “listening” antes de
-      // devolver control, así otros módulos pueden usarlo con seguridad.
+      // devolver control, así los demás módulos pueden usarlo con seguridad.
       await new Promise((resolve, reject) => {
         function cleanup() {
           server.off('error', onError);
@@ -47,8 +46,7 @@ function createDashboardServer(options = {}) {
       return address;
     },
     async stop() {
-      // Si nunca llegó a iniciar, no intentamos cerrarlo porque Node lanzaría
-      // errores innecesarios.
+      // Si nunca llegó a iniciar, no intenta cerrarlo porque Node lanzaría errores innecesarios.
       if (!listening) {
         return;
       }

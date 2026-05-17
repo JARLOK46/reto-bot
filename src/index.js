@@ -7,21 +7,22 @@ const { registerHandlers } = require('./handlers/register-handlers');
 const { createDashboardController } = require('./dashboard/dashboard-controller');
 const { createDashboardServer } = require('./dashboard/create-dashboard-server');
 
-// En algunos despliegues de Render/Node, priorizar IPv4 reduce timeouts
-// intermitentes al resolver api.telegram.org.
+// Prioriza IPv4 para reducir timeouts intermitentes al resolver api.telegram.org
+// en algunos despliegues.
 dns.setDefaultResultOrder('ipv4first');
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-// Solo reintentamos errores transitorios de red. Errores de configuración
-// como 401/403/409 deben fallar de forma explícita para no ocultar el problema.
+// Solo reintenta errores temporales de red. Si el problema es de configuración,
+// debe fallar de forma explícita para no ocultarlo.
 function isRetryableTelegramError(error) {
   return ['ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(error?.code);
 }
 
-// Normaliza errores runtime para exponerlos en /health sin filtrar stacks completos.
+// Normaliza errores del runtime en un formato simple para mostrarlos en /health
+// o en el dashboard.
 function toRuntimeError(error) {
   if (!error) {
     return null;
@@ -35,8 +36,8 @@ function toRuntimeError(error) {
   };
 }
 
-// Estado observable del runtime. Esto permite saber desde /health si el bot
-// está conectado, reintentando o falló por un error no recuperable.
+// Representa el estado técnico del bot para saber si está conectado,
+// reintentando o si ya falló por un error no recuperable.
 function createBotState(config) {
   return {
     mode: config.telegram.mode,
@@ -48,7 +49,7 @@ function createBotState(config) {
 }
 
 function syncRuntimeError(observabilityStore, error, scope, title) {
-  // Copia el error a observabilidad en un formato consistente para dashboard y API.
+  // Copia el error al store de observabilidad con un formato consistente.
   if (!observabilityStore || !error) {
     return;
   }
@@ -62,12 +63,11 @@ function syncRuntimeError(observabilityStore, error, scope, title) {
 }
 
 function syncRuntimeEvent(observabilityStore, event) {
-  // Atajo para no repetir chequeos nulos en cada llamada.
+  // Evita repetir validaciones nulas al registrar eventos de runtime.
   observabilityStore?.recordRuntimeEvent(event);
 }
 
-// Modo polling: adecuado para desarrollo local o despliegues simples. En hosting
-// puede fallar por cortes transitorios de red, por eso se reintenta con backoff.
+// Arranca el bot en modo polling. Si falla por red, aplica reintentos con backoff.
 async function launchBotWithRetry(bot, { shouldStop, logger = console, botState, observabilityStore } = {}) {
   let attempt = 0;
 
@@ -132,8 +132,8 @@ async function launchBotWithRetry(bot, { shouldStop, logger = console, botState,
   return false;
 }
 
-// Modo webhook: preferido para Render Web Service. Telegraf registra el webhook
-// remoto y nosotros conectamos el handler HTTP al servidor interno del proceso.
+// Registra el webhook en Telegram y después conecta el handler HTTP al servidor
+// interno del proceso.
 async function registerWebhookWithRetry(bot, telegramConfig, { shouldStop, logger = console, botState, observabilityStore } = {}) {
   let attempt = 0;
 
@@ -204,13 +204,12 @@ async function registerWebhookWithRetry(bot, telegramConfig, { shouldStop, logge
 }
 
 function createBotApp(config) {
-  // Aquí se ensamblan las piezas del bot, pero todavía no se arranca la conexión
-  // con Telegram. Solo se prepara el runtime base.
+  // Ensambla las piezas base del bot, sin conectarlo todavía con Telegram.
   const bot = new Telegraf(config.botToken);
   const sessionStore = createSessionStore();
   const observabilityStore = createObservabilityStore();
 
-  // Cualquier error dentro de handlers debe registrarse sin tumbar el proceso.
+  // Si algo falla dentro de un handler, el error se registra sin tumbar todo el proceso.
   bot.catch((error, ctx) => {
     observabilityStore.recordBotError({
       scope: 'bot-handler',
@@ -236,12 +235,12 @@ function createBotApp(config) {
 }
 
 function createRuntimeApp(config, options = {}) {
-  // Une capa Telegram + capa HTTP + observabilidad en una sola estructura.
+  // Une Telegram, HTTP y observabilidad en una sola estructura de runtime.
   const processStartedAt = options.processStartedAt ?? Date.now();
   const { bot, sessionStore, observabilityStore } = createBotApp(config);
   const botState = createBotState(config);
-  // El runtime HTTP ahora cumple dos funciones reales: servir el dashboard
-  // administrativo y exponer rutas de salud/snapshot/webhook para Render.
+  // El runtime HTTP sirve para mostrar el dashboard y para exponer
+  // salud/snapshot/webhook hacia Render.
   const dashboardController = createDashboardController({
     sessionStore,
     processStartedAt,
@@ -268,7 +267,7 @@ function createRuntimeApp(config, options = {}) {
 }
 
 async function main() {
-  // main orquesta el orden de arranque y apagado del sistema completo.
+  // Orquesta el orden de arranque y apagado del sistema completo.
   const config = loadEnv();
   const runtime = createRuntimeApp(config);
   const { bot, observabilityStore, botState, controller, dashboardServer } = runtime;
@@ -277,7 +276,7 @@ async function main() {
   let botStarted = false;
 
   async function shutdown(signal) {
-    // Evita apagar dos veces si Render manda múltiples señales.
+    // Evita intentar apagar dos veces si Render envía varias señales.
     if (shuttingDown) {
       return;
     }
@@ -290,13 +289,13 @@ async function main() {
     }
   }
 
-  // El servidor HTTP debe iniciar primero para que /health responda y, en modo
-  // webhook, Telegram tenga un endpoint disponible cuando registremos la URL.
+  // El servidor HTTP inicia primero para que /health responda y, en modo
+  // webhook, Telegram tenga el endpoint listo al registrar la URL.
   await dashboardServer.start();
 
   Promise.resolve()
     .then(async () => {
-      // Elegimos el modo de conexión según la configuración ya validada.
+      // Elige el modo de conexión usando la configuración ya validada.
       if (config.telegram.mode === 'webhook') {
         const webhookHandler = await registerWebhookWithRetry(bot, config.telegram, {
           shouldStop: () => shuttingDown,

@@ -9,7 +9,7 @@ function formatDateTime(timestamp) {
   });
 }
 
-// Convierte segundos “crudos” a una etiqueta corta amigable para la UI.
+// Convierte segundos “crudos” a una etiqueta corta más amigable para la UI.
 function formatRelativeSeconds(seconds) {
   if (!Number.isFinite(seconds)) {
     return 'n/a';
@@ -48,7 +48,7 @@ function formatBotStatus(status) {
           : 'En espera';
 }
 
-// Muestra cuánto queda de un turno sin exponer milisegundos directamente.
+// Muestra cuánto queda de un turno sin enseñar milisegundos directamente.
 function formatTurnRemaining(turn) {
   if (!turn) {
     return 'Sin turno';
@@ -62,7 +62,7 @@ function formatTurnRemaining(turn) {
   return `${seconds}s`;
 }
 
-// Asegura que todos los porcentajes para gráficas queden entre 0 y 100.
+// Asegura que cualquier porcentaje para gráfica quede entre 0 y 100.
 function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -72,8 +72,8 @@ function sumValues(items) {
   return items.reduce((total, item) => total + (item.value ?? 0), 0);
 }
 
-// Construye los puntos de la gráfica principal tomando historial reciente y un
-// poco de la actividad todavía activa.
+// Construye los puntos de la gráfica principal usando historial reciente y un
+// poco de actividad todavía activa.
 function buildTrendPoints(snapshot) {
   const historyScores = (snapshot.observability?.sessionHistory ?? [])
     .slice(0, 6)
@@ -95,8 +95,8 @@ function buildTrendPoints(snapshot) {
   }));
 }
 
-// Sidebar: organiza bloques cortos de contexto para que el usuario entienda el
-// estado general sin leer tablas grandes.
+// Organiza el sidebar en bloques cortos para que se entienda el estado general
+// sin tener que leer tablas grandes.
 function buildFilterGroups(snapshot, bot) {
   const counts = snapshot.sessions?.counts ?? {};
   const summary = snapshot.observability?.summary ?? {};
@@ -153,7 +153,7 @@ function buildSessionBreakdown(snapshot) {
   }));
 }
 
-// Prepara barras comparativas simples para actividad global del proceso.
+// Prepara barras comparativas simples para la actividad global del proceso.
 function buildActivityBars(summary, counts, recentErrors, recentEvents) {
   const items = [
     { label: 'Chats', value: summary.totalChats ?? 0 },
@@ -172,7 +172,7 @@ function buildActivityBars(summary, counts, recentErrors, recentEvents) {
   }));
 }
 
-// Presenter = traductor entre datos crudos del backend y datos listos para la UI.
+// Traductor entre datos crudos del backend y datos listos para la UI.
 function createDashboardPresenter() {
   return {
     present(snapshot) {
@@ -255,7 +255,7 @@ function createDashboardPresenter() {
       const continuityRate = clampPercent((((summary.totalCorrectAnswers ?? 0) + 1) / ((summary.totalCorrectAnswers ?? 0) + (summary.totalWrongAnswers ?? 0) + 1)) * 100);
       const stabilityRate = clampPercent(((healthyRuns - (snapshot.observability?.recentErrors?.length ?? 0)) / healthyRuns) * 100);
 
-      // La vista recibe un objeto ya cocinado, para no meter lógica compleja dentro del HTML.
+      // La vista recibe un objeto ya cocinado para no meter lógica compleja dentro del HTML.
       return {
         title: 'Centro de control del bot',
         refreshSeconds: 15,

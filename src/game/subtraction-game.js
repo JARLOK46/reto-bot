@@ -2,7 +2,7 @@ const DEFAULT_SCORE_INCREMENT = 1;
 const DEFAULT_TURN_TIMEOUT_SECONDS = 15;
 const LEVEL_UP_SCORE = 20;
 
-// Reglas mínimas por nivel.
+// Define las reglas mínimas por nivel.
 const LEVEL_RULES = {
   1: { minOperand: 0, maxOperand: 9 },
   2: { minOperand: 10, maxOperand: 99 },
@@ -10,7 +10,7 @@ const LEVEL_RULES = {
 
 let turnSequence = 0;
 
-// Devuelve un entero aleatorio inclusivo entre min y max.
+// Devuelve un entero aleatorio entre min y max, incluyendo ambos.
 function randomBetween(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -39,12 +39,12 @@ function normalizeNow(now = Date.now()) {
   return now;
 }
 
-// Obtiene la configuración de un nivel; si el nivel no existe, cae a nivel 1.
+// Obtiene la configuración de un nivel. Si no existe, cae al nivel 1.
 function getLevelRule(level) {
   return LEVEL_RULES[level] ?? LEVEL_RULES[1];
 }
 
-// Calcula el rango teórico de respuestas válidas para un nivel dado.
+// Calcula el rango teórico de respuestas válidas para un nivel.
 function getAnswerRange(level) {
   const { minOperand, maxOperand } = getLevelRule(level);
 
@@ -54,8 +54,8 @@ function getAnswerRange(level) {
   };
 }
 
-// Elige la respuesta correcta del próximo problema. Intenta evitar repetir de
-// inmediato la respuesta previa para que el juego no se sienta artificial.
+// Elige la respuesta correcta del próximo problema e intenta evitar repetir de
+// inmediato la respuesta anterior.
 function chooseAnswer(options = {}) {
   const level = options.level ?? 1;
   const previousAnswer = options.previousAnswer;
@@ -83,8 +83,7 @@ function getLevelForScore(score) {
   return score >= LEVEL_UP_SCORE ? 2 : 1;
 }
 
-// Crea una resta válida para el nivel indicado, garantizando que el resultado
-// no sea negativo.
+// Crea una resta válida para el nivel indicado y garantiza que no dé negativo.
 function createProblem(options = {}) {
   const level = options.level ?? 1;
   const { minOperand, maxOperand } = getLevelRule(level);
@@ -103,7 +102,7 @@ function createProblem(options = {}) {
   };
 }
 
-// Construye 4 opciones únicas de respuesta, incluyendo obligatoriamente la correcta.
+// Construye 4 opciones únicas e incluye obligatoriamente la respuesta correcta.
 function createChoices(answer) {
   const choices = new Set([answer]);
   const candidates = [
@@ -162,7 +161,7 @@ function createTurn(options = {}) {
   };
 }
 
-// Intenta convertir lo escrito por el usuario en un entero. Si no parece un
+// Intenta convertir lo que escribió el usuario en un entero. Si no parece un
 // número válido, devuelve null.
 function parseAnswer(rawValue) {
   const normalized = String(rawValue ?? "").trim();
@@ -174,8 +173,8 @@ function parseAnswer(rawValue) {
   return Number.parseInt(normalized, 10);
 }
 
-// Resuelve si la respuesta pertenece al turno correcto, si aún está vigente y
-// si coincide con la respuesta esperada.
+// Resuelve si la respuesta corresponde al turno correcto, si todavía está
+// vigente y si coincide con la respuesta esperada.
 function resolveTurnAnswer(session, input = {}) {
   if (!session?.turn) {
     return { kind: "missing" };
@@ -271,7 +270,7 @@ function formatNoSessionMessage() {
   return "No hay una sesion activa. Escribe /start para comenzar.";
 }
 
-// Serializa la respuesta de un botón para que Telegram pueda devolverla después.
+// Serializa la respuesta del botón para que Telegram la devuelva después.
 function createAnswerCallbackData(turnId, answer) {
   return `answer:${turnId}:${answer}`;
 }
